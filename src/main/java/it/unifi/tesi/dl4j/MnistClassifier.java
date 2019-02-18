@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
 public class MnistClassifier {
 
   private static final Logger log = LoggerFactory.getLogger(MnistClassifier.class);
-  private static final String basePath = System.getProperty("java.io.tmpdir") + "/mnist";
+  private static final String basePath = "/Volumes/KINGSTON/Dataset_tesi";//System.getProperty("java.io.tmpdir") + "/mnist";
   private static final String dataUrl = "http://github.com/myleott/mnist_png/raw/master/mnist_png.tar.gz";
 
   public static void main(String[] args) throws Exception {
@@ -61,16 +61,16 @@ public class MnistClassifier {
 
     int seed = 1234;
     Random randNumGen = new Random(seed);
-
+    /*
     log.info("Data load and vectorization...");
     String localFilePath = basePath + "/mnist_png.tar.gz";
     if (DataUtilities.downloadFile(dataUrl, localFilePath))
       log.debug("Data downloaded from {}", dataUrl);
     if (!new File(basePath + "/mnist_png").exists())
       DataUtilities.extractTarGz(localFilePath, basePath);
-
+	*/
     // vectorization of train data
-    File trainData = new File(basePath + "/mnist_png/training");
+    File trainData = new File(basePath + "/dataset_master/training");
     FileSplit trainSplit = new FileSplit(trainData, NativeImageLoader.ALLOWED_FORMATS, randNumGen);
     ParentPathLabelGenerator labelMaker = new ParentPathLabelGenerator(); // parent path as the image label
     ImageRecordReader trainRR = new ImageRecordReader(height, width, channels, labelMaker);
@@ -83,7 +83,7 @@ public class MnistClassifier {
     trainIter.setPreProcessor(scaler);
 
     // vectorization of test data
-    File testData = new File(basePath + "/mnist_png/testing");
+    File testData = new File(basePath + "/dataset_master/testing");
     FileSplit testSplit = new FileSplit(testData, NativeImageLoader.ALLOWED_FORMATS, randNumGen);
     ImageRecordReader testRR = new ImageRecordReader(height, width, channels, labelMaker);
     testRR.initialize(testSplit);

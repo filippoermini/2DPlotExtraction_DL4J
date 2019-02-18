@@ -23,7 +23,7 @@
         <datavec.version>1.0.0-beta3</datavec.version>
         <arbiter.version>1.0.0-beta3</arbiter.version>
         <rl4j.version>1.0.0-beta3</rl4j.version>
-         <nd4j.backend>nd4j-native-platform</nd4j.backend>
+        <nd4j.backend>nd4j-native-platform</nd4j.backend>
 
         <!-- For Spark examples: change the _1 to _2 to switch between Spark 1 and Spark 2 -->
         <dl4j.spark.version>1.0.0-beta3_spark_1</dl4j.spark.version>
