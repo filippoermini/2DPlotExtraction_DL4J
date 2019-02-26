@@ -15,6 +15,7 @@ import org.deeplearning4j.nn.api.OptimizationAlgorithm;
 import org.deeplearning4j.nn.conf.MultiLayerConfiguration;
 import org.deeplearning4j.nn.conf.NeuralNetConfiguration;
 import org.deeplearning4j.nn.conf.Updater;
+import org.deeplearning4j.nn.conf.distribution.Distribution;
 import org.deeplearning4j.nn.conf.inputs.InputType;
 import org.deeplearning4j.nn.conf.layers.ConvolutionLayer;
 import org.deeplearning4j.nn.conf.layers.DenseLayer;
@@ -28,6 +29,7 @@ import org.nd4j.linalg.activations.Activation;
 import org.nd4j.linalg.dataset.api.iterator.DataSetIterator;
 import org.nd4j.linalg.dataset.api.preprocessor.DataNormalization;
 import org.nd4j.linalg.dataset.api.preprocessor.ImagePreProcessingScaler;
+import org.nd4j.linalg.learning.config.Adam;
 import org.nd4j.linalg.learning.config.Nesterovs;
 import org.nd4j.linalg.lossfunctions.LossFunctions;
 import org.nd4j.linalg.schedule.MapSchedule;
@@ -47,30 +49,52 @@ import org.slf4j.LoggerFactory;
 public class MnistClassifier {
 
   private static final Logger log = LoggerFactory.getLogger(MnistClassifier.class);
-  private static final String basePath = "/Volumes/KINGSTON/Dataset_tesi";//System.getProperty("java.io.tmpdir") + "/mnist";
+  private static final String basePath = "/Users/filippo.ermini/Documents/mnist"; //Users/filippo.ermini/Documents/Dataset_tesi";//
   private static final String dataUrl = "http://github.com/myleott/mnist_png/raw/master/mnist_png.tar.gz";
 
+  
+  private static ConvolutionLayer convInit(String name, int in, int out, int[] kernel, int[] stride, int[] pad, double bias) {
+      return new ConvolutionLayer.Builder(kernel, stride, pad).name(name).nIn(in).nOut(out).biasInit(bias).build();
+  }
+
+  private ConvolutionLayer conv3x3(String name, int out, double bias) {
+      return new ConvolutionLayer.Builder(new int[]{3,3}, new int[] {1,1}, new int[] {1,1}).name(name).nOut(out).biasInit(bias).build();
+  }
+
+  private static ConvolutionLayer conv5x5(String name, int out, int[] stride, int[] pad, double bias) {
+      return new ConvolutionLayer.Builder(new int[]{5,5}, stride, pad).name(name).nOut(out).biasInit(bias).build();
+  }
+
+  private static SubsamplingLayer maxPool(String name,  int[] kernel) {
+      return new SubsamplingLayer.Builder(kernel, new int[]{2,2}).name(name).build();
+  }
+
+  private DenseLayer fullyConnected(String name, int out, double bias, double dropOut, Distribution dist) {
+      return new DenseLayer.Builder().name(name).nOut(out).biasInit(bias).dropOut(dropOut).dist(dist).build();
+  }
+
+  
   public static void main(String[] args) throws Exception {
     int height = 28;
     int width = 28;
     int channels = 1; // single channel for grayscale images
     int outputNum = 10; // 10 digits classification
     int batchSize = 54;
-    int nEpochs = 1;
+    int nEpochs = 2;
     int iterations = 1;
 
     int seed = 1234;
     Random randNumGen = new Random(seed);
-    /*
+    
     log.info("Data load and vectorization...");
     String localFilePath = basePath + "/mnist_png.tar.gz";
     if (DataUtilities.downloadFile(dataUrl, localFilePath))
       log.debug("Data downloaded from {}", dataUrl);
     if (!new File(basePath + "/mnist_png").exists())
       DataUtilities.extractTarGz(localFilePath, basePath);
-	*/
+
     // vectorization of train data
-    File trainData = new File(basePath + "/dataset_master/training");
+    File trainData = new File(basePath + "/mnist_png/training");
     FileSplit trainSplit = new FileSplit(trainData, NativeImageLoader.ALLOWED_FORMATS, randNumGen);
     ParentPathLabelGenerator labelMaker = new ParentPathLabelGenerator(); // parent path as the image label
     ImageRecordReader trainRR = new ImageRecordReader(height, width, channels, labelMaker);
@@ -83,7 +107,7 @@ public class MnistClassifier {
     trainIter.setPreProcessor(scaler);
 
     // vectorization of test data
-    File testData = new File(basePath + "/dataset_master/testing");
+    File testData = new File(basePath + "/mnist_png/testing");
     FileSplit testSplit = new FileSplit(testData, NativeImageLoader.ALLOWED_FORMATS, randNumGen);
     ImageRecordReader testRR = new ImageRecordReader(height, width, channels, labelMaker);
     testRR.initialize(testSplit);
@@ -101,7 +125,8 @@ public class MnistClassifier {
     MultiLayerConfiguration conf = new NeuralNetConfiguration.Builder()
         .seed(seed)
         .l2(0.0005)
-        .updater(new Nesterovs(new MapSchedule(ScheduleType.ITERATION, lrSchedule)))
+        .updater(new Nesterovs(0.005,0.9))
+        .activation(Activation.RELU)
         .weightInit(WeightInit.XAVIER)
         .list()
         .layer(0, new ConvolutionLayer.Builder(5, 5)
@@ -124,13 +149,34 @@ public class MnistClassifier {
             .stride(2, 2)
             .build())
         .layer(4, new DenseLayer.Builder().activation(Activation.RELU)
-            .nOut(500).build())
+            .nOut(250).build())
         .layer(5, new OutputLayer.Builder(LossFunctions.LossFunction.NEGATIVELOGLIKELIHOOD)
             .nOut(outputNum)
             .activation(Activation.SOFTMAX)
             .build())
-        .setInputType(InputType.convolutionalFlat(28, 28, 1)) // InputType.convolutional for normal image
-        .backprop(true).pretrain(false).build();
+        .setInputType(InputType.convolutionalFlat(height, width, channels)) // InputType.convolutional for normal image
+        .backprop(true).pretrain(true).build();
+    
+    MultiLayerConfiguration conf1 = new NeuralNetConfiguration.Builder()
+            .seed(seed)
+            .l2(0.005)
+            .activation(Activation.RELU)
+            .weightInit(WeightInit.XAVIER)
+            .updater(new Nesterovs(0.005,0.9))
+            .list()
+            .layer(0, convInit("cnn1", channels, 50 ,  new int[]{5, 5}, new int[]{1, 1}, new int[]{0, 0}, 0))
+            .layer(1, maxPool("maxpool1", new int[]{2,2}))
+            .layer(2, conv5x5("cnn2", 100, new int[]{5, 5}, new int[]{1, 1}, 0))
+            .layer(3, maxPool("maxool2", new int[]{2,2}))
+            .layer(4, new DenseLayer.Builder().nOut(250).build())
+            .layer(5, new OutputLayer.Builder(LossFunctions.LossFunction.NEGATIVELOGLIKELIHOOD)
+                .nOut(outputNum)
+                .activation(Activation.SOFTMAX)
+                .build())
+            .backprop(true).pretrain(false)
+            .setInputType(InputType.convolutional(height, width, channels))
+            .build();
+
 
     MultiLayerNetwork net = new MultiLayerNetwork(conf);
     net.init();
@@ -141,11 +187,11 @@ public class MnistClassifier {
     for (int i = 0; i < nEpochs; i++) {
       net.fit(trainIter);
       log.info("Completed epoch {}", i);
-      Evaluation eval = net.evaluate(testIter);
-      log.info(eval.stats());
       trainIter.reset();
-      testIter.reset();
     }
+    testIter.reset();
+    Evaluation eval = net.evaluate(testIter);
+    log.info(eval.stats());
 
     ModelSerializer.writeModel(net, new File(basePath + "/minist-model.zip"), true);
   }
